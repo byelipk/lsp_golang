@@ -34,24 +34,24 @@ func EncodeMessage(msg any) string {
 
 }
 
-func DecodeMessage(msg []byte) (string, int, error) {
+func DecodeMessage(msg []byte) (string, []byte, error) {
     header, content, found := bytes.Cut(msg, []byte{'\r', '\n', '\r', '\n'})
 
     if !found {
-        return "", 0, errors.New("Did not find separator")
+        return "", nil, errors.New("Did not find separator")
     }
 
     contentLenBytes := header[len("Content-Length: "):]
     contentLen, err := strconv.Atoi(string(contentLenBytes))
 
     if err != nil {
-        return "", 0, err
+        return "", nil, err
     }
 
     var baseMessage BaseMessage
     if err := json.Unmarshal(content[:contentLen], &baseMessage); err != nil {
-        return "", 0, err
+        return "", nil, err
     }
 
-    return baseMessage.Method, contentLen, nil
+    return baseMessage.Method, content, nil
 }
