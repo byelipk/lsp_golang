@@ -32,3 +32,8 @@ func TestDecodeMessage(t *testing.T) {
         t.Fatalf("Expected content length 16, got %d", contentLen)
     }
 }
+
+// type SplitFunc func(data []byte, atEOF bool) (advance int, token []byte, err error)
+func Split(data []byte, atEOF bool) (advance int, token []byte, err error) {
+    return 0, nil, nil
+}

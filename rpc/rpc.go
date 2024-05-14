@@ -55,3 +55,28 @@ func DecodeMessage(msg []byte) (string, []byte, error) {
 
     return baseMessage.Method, content, nil
 }
+
+func Split(data []byte, atEOF bool) (advance int, token []byte, err error) {
+    header, content, found := bytes.Cut(data, []byte{'\r', '\n', '\r', '\n'})
+
+    // If we don't have the full header, wait.
+    if !found {
+        return 0, nil, nil
+    }
+
+    contentLenBytes := header[len("Content-Length: "):]
+    contentLen, err := strconv.Atoi(string(contentLenBytes))
+    // If we can't parse the content length, return an error.
+    if err != nil {
+        return 0, nil, err
+    }
+
+    // Wait until we have the full message.
+    if len(content) < contentLen {
+        return 0, nil, nil
+    }
+
+    // Return the full message.
+    totalLen := len(header) + 4 + contentLen
+    return totalLen, data[:contentLen], nil
+}
