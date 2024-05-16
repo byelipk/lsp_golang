@@ -51,9 +51,8 @@ func handleMessage(logger *log.Logger, method string, contentLength int, content
         if err := json.Unmarshal(contentBody, &request); err != nil {
             logger.Println("Error unmarshalling initialize request: ", err)
         }
-
-        logger.Println("Connected with client: ", 
-            request.Params.ClientInfo.Name)
+        logger.Println("Connected with client: ", request.Params.ClientInfo.Name)
+        logger.Println("Client version: ", request.Params.ClientInfo.Version)
     default:
         logger.Println("Method not implemented: ", method)
     }
