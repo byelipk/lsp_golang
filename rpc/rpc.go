@@ -6,6 +6,7 @@ import (
     "bytes"
     "errors"
     "strconv"
+    "strings"
 )
 
 type BaseMessage struct {
@@ -34,49 +35,105 @@ func EncodeMessage(msg any) string {
 
 }
 
-func DecodeMessage(msg []byte) (string, []byte, error) {
-    header, content, found := bytes.Cut(msg, []byte{'\r', '\n', '\r', '\n'})
+func DecodeMessage(msg []byte) (method string, contentLength int, content []byte, error error) {
+    separatorLength := 4
+    separator := []byte{ '\r', '\n', '\r', '\n' }
+    headerEndIdx := bytes.Index(msg, separator)
 
-    if !found {
-        return "", nil, errors.New("Did not find separator")
+    if headerEndIdx == -1 {
+        return "", 0, nil, errors.New("[Decoder] Did not find separator")
     }
 
-    contentLenBytes := header[len("Content-Length: "):]
-    contentLen, err := strconv.Atoi(string(contentLenBytes))
+    headers := msg[:headerEndIdx]
+    content = msg[headerEndIdx + separatorLength:]
 
-    if err != nil {
-        return "", nil, err
+    headerLines := strings.Split(string(headers), "\r\n")
+    contentLength = -1
+
+    for _, h := range headerLines {
+        parts := strings.SplitN(h, ": ", 2)
+
+        if len(parts) != 2 {
+            continue
+        }
+
+        if parts[0] == "Content-Length" {
+            length, err := strconv.Atoi(parts[1])
+
+            if err != nil {
+                return "", 0, nil, err
+            }
+
+            contentLength = length
+        }
     }
+
+    if contentLength == -1 {
+        return "", 0, nil, errors.New("[Decoder] No content length found")
+    }
+
+    if len(content) < contentLength {
+        actualLength := len(content)
+        errorMessage := fmt.Sprintf("[Decoder] Content length is less than expected. Actual: %d, Expected: %d", actualLength, contentLength)
+        return "", 0, nil, errors.New(errorMessage)
+    }
+
+    content = content[:contentLength]
+
 
     var baseMessage BaseMessage
-    if err := json.Unmarshal(content[:contentLen], &baseMessage); err != nil {
-        return "", nil, err
+    if err := json.Unmarshal(content[:contentLength], &baseMessage); err != nil {
+        return "", 0, nil, err
     }
 
-    return baseMessage.Method, content, nil
+    return baseMessage.Method, contentLength, content, nil
 }
 
 func Split(data []byte, atEOF bool) (advance int, token []byte, err error) {
-    header, content, found := bytes.Cut(data, []byte{'\r', '\n', '\r', '\n'})
+    separator := []byte{ '\r', '\n', '\r', '\n' }
+    headerEndIdx := bytes.Index(data, separator)
 
-    // If we don't have the full header, wait.
-    if !found {
+    if headerEndIdx == -1 {
+        if atEOF {
+            return len(data), nil, nil
+        }
         return 0, nil, nil
     }
 
-    contentLenBytes := header[len("Content-Length: "):]
-    contentLen, err := strconv.Atoi(string(contentLenBytes))
-    // If we can't parse the content length, return an error.
-    if err != nil {
-        return 0, nil, err
+    headers := data[:headerEndIdx]
+    headerLines := bytes.Split(headers, []byte("\r\n"))
+    contentLength := -1
+
+    for _, h := range headerLines {
+        parts := bytes.SplitN(h, []byte(": "), 2)
+
+        if len(parts) != 2 {
+            continue
+        }
+
+        if bytes.Equal(parts[0], []byte("Content-Length")) {
+            length, err := strconv.Atoi(string(parts[1]))
+
+            if err != nil {
+                return 0, nil, err
+            }
+
+            contentLength = length
+        }
     }
 
-    // Wait until we have the full message.
-    if len(content) < contentLen {
+    if contentLength == -1 {
+        return 0, nil, errors.New("[Split] No content length found")
+    }
+
+    totalLength := headerEndIdx + len(separator) + contentLength
+
+    // Tell the scanner to read more data because we don't
+    // have a full message yet.
+    if len(data) < totalLength {
         return 0, nil, nil
     }
 
     // Return the full message.
-    totalLen := len(header) + 4 + contentLen
-    return totalLen, data[:contentLen], nil
+    return totalLength, data[:totalLength], nil
 }
