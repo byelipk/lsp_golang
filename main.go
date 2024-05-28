@@ -35,7 +35,6 @@ func main() {
 
 		handleMessage(logger, method, contentLength, contentBody)
 	}
-
 }
 
 func handleMessage(logger *log.Logger, method string, contentLength int, contentBody []byte) {
@@ -55,13 +54,21 @@ func handleMessage(logger *log.Logger, method string, contentLength int, content
 		logger.Println("Client version: ", request.Params.ClientInfo.Version)
 		logger.Println("Request ID: ", request.ID)
 
-        msg := lsp.NewInitializeResponse(request.ID)
-        reply := rpc.EncodeMessage(msg)
+		msg := lsp.NewInitializeResponse(request.ID)
+		reply := rpc.EncodeMessage(msg)
 
-        writer := os.Stdout
-        writer.Write([]byte(reply))
+		writer := os.Stdout
+		writer.Write([]byte(reply))
 
-        logger.Println("Sent initialize response")
+		logger.Println("Sent initialize response")
+
+	case "textDocument/didOpen":
+		var request lsp.DidOpenTextDocumentNotification
+		if err := json.Unmarshal(contentBody, &request); err != nil {
+			logger.Println("Error unmarshalling didOpen request: ", err)
+		}
+
+        logger.Println("Opened document: ", request.Params.TextDocument.URI)
 
 	default:
 		logger.Println("Method not implemented: ", method)
